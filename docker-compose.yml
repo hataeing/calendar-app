@@ -1,0 +1,11 @@
+services:
+  calendar:
+    build: /home/hamimose/workspace/calendar-app
+    container_name: calendar
+    restart: unless-stopped
+    ports:
+      - "3300:80"
+    environment:
+      - TZ=Asia/Seoul
+    volumes:
+      - ./data:/data

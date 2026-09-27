@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>일정관리 캘린더</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f1117;
+  --panel: #171a23;
+  --panel2: #1e222e;
+  --border: #2b303f;
+  --text: #e7e9f0;
+  --muted: #8b91a5;
+  --accent: #5b8cff;
+  --danger: #e05252;
+}
+html, body { height: 100%; }
+body {
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ── 헤더 ─────────────────────────── */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.app-header h1 { font-size: 18px; }
+.nav-controls { display: flex; align-items: center; gap: 6px; }
+#labelTitle { font-size: 17px; font-weight: 700; min-width: 140px; text-align: center; }
+.view-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+
+button {
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+button:hover { background: #262b3a; }
+.btn-icon { padding: 7px 11px; font-size: 16px; line-height: 1; }
+.view-toggle { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.view-toggle button { border: none; border-radius: 0; padding: 7px 16px; background: transparent; }
+.view-toggle button.active { background: var(--accent); color: #fff; }
+
+/* ── 캘린더 그리드 ─────────────────── */
+main.calendar { flex: 1; overflow: auto; display: flex; flex-direction: column; }
+.dow-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--panel);
+}
+.dow {
+  padding: 8px 6px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.dow:nth-child(1) { color: #e06b6b; }
+.dow:nth-child(7) { color: #6b8ee0; }
+.days-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: minmax(86px, 1fr);
+  min-height: 0;
+}
+.calendar.week .days-grid { grid-auto-rows: minmax(150px, 1fr); }
+
+.day-cell {
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  cursor: pointer;
+  background: var(--bg);
+  transition: background .15s;
+}
+.day-cell:nth-child(7n) { border-right: none; }
+.day-cell:hover { background: #181b25; }
+.day-cell.other { opacity: .4; }
+.day-cell .date-num {
+  font-size: 13px;
+  font-weight: 600;
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 50%;
+}
+.day-cell.today .date-num { background: var(--accent); color: #fff; }
+
+.event-chip {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 500;
+  text-align: left;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid;
+  border-left-width: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.event-chip:hover { filter: brightness(1.15); }
+.chip-time { opacity: .8; margin-right: 3px; font-variant-numeric: tabular-nums; }
+
+/* ── 모달 ─────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(5, 7, 12, .65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-backdrop[hidden] { display: none; }
+.modal {
+  width: min(360px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .55);
+}
+.modal h3 { font-size: 16px; }
+.modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.modal input[type="text"], .modal input[type="time"] {
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+}
+.modal input:focus { outline: none; border-color: var(--accent); }
+.modal input[type="time"] { color-scheme: dark; }
+.color-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  padding: 0;
+  transition: transform .12s, border-color .12s;
+}
+.swatch.active { border-color: #fff; transform: scale(1.12); }
+.modal-actions { display: flex; align-items: center; gap: 8px; }
+.modal-actions .spacer { flex: 1; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:hover { background: #6f9bff; }
+button.danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+button.danger:hover { background: rgba(224, 82, 82, .12); }
+.hidden { display: none !important; }
+
+/* ── 반응형 ───────────────────────── */
+@media (max-width: 640px) {
+  .app-header { padding: 10px; gap: 8px; }
+  .app-header h1 { font-size: 15px; }
+  #labelTitle { font-size: 15px; min-width: 104px; }
+  .view-controls { width: 100%; margin-left: 0; justify-content: flex-end; }
+  .view-controls button { padding: 6px 9px; font-size: 12px; }
+  .days-grid { grid-auto-rows: minmax(54px, 1fr); }
+  .calendar.week .days-grid { grid-auto-rows: minmax(110px, 1fr); }
+  .day-cell { padding: 3px; }
+  .day-cell .date-num { font-size: 11px; padding: 1px 5px; }
+  .event-chip { font-size: 10px; padding: 1px 4px; }
+  .chip-time { display: none; }
+}
+</style>
+</head>
+<body>
+<header class="app-header">
+  <h1>일정관리</h1>
+  <div class="nav-controls">
+    <button id="btnPrev" class="btn-icon" aria-label="이전">‹</button>
+    <button id="btnToday">오늘</button>
+    <button id="btnNext" class="btn-icon" aria-label="다음">›</button>
+    <h2 id="labelTitle"></h2>
+  </div>
+  <div class="view-controls">
+    <div class="view-toggle">
+      <button id="viewMonth" class="active">월</button>
+      <button id="viewWeek">주</button>
+    </div>
+    <button id="btnExport">내보내기</button>
+    <button id="btnImport">가져오기</button>
+    <input type="file" id="fileImport" accept=".json,application/json" hidden>
+  </div>
+</header>
+
+<main id="calendar" class="calendar month"></main>
+
+<div class="modal-backdrop" id="modalBackdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalHeading">
+    <h3 id="modalHeading">일정 추가</h3>
+    <label>제목
+      <input type="text" id="evTitle" maxlength="50" placeholder="일정 제목">
+    </label>
+    <label>시간
+      <input type="time" id="evTime">
+    </label>
+    <label>색상
+      <div class="color-row" id="colorRow"></div>
+    </label>
+    <div class="modal-actions">
+      <button id="btnDelete" class="danger hidden">삭제</button>
+      <div class="spacer"></div>
+      <button id="btnCancel">취소</button>
+      <button id="btnSave" class="primary">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+const STORAGE_KEY = '/api/events';  // 서버 API 경로 (기기 공유)
+const COLORS = ['#e05252', '#f0923a', '#4f8cff', '#3fb27f', '#a06be0', '#e0559a'];
+const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+const $ = s => document.querySelector(s);
+
+let events = [];
+let state = { view: 'month', year: 0, month: 0, anchor: null };
+let editing = null;      // 수정 중인 일정 id
+let selectedColor = COLORS[0];
+
+/* ── 유틸 ─────────────────────────── */
+const pad = n => String(n).padStart(2, '0');
+const fmt = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+const startOfWeek = d => addDays(d, -d.getDay());
+const parseTime = t => (!t ? Infinity : ((+t.slice(0, 2)) * 60 + (+t.slice(3, 5))));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const esc = s => s.replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const isValidEvent = e =>
+  e && typeof e.title === 'string' && typeof e.date === 'string' &&
+  /^\d{4}-\d{2}-\d{2}$/.test(e.date);
+
+/* ── 저장소 (서버 API — 기기 공유) ─── */
+async function apiLoad() {
+  try {
+    const r = await fetch(STORAGE_KEY, { cache: 'no-store' });
+    const arr = await r.json();
+    return Array.isArray(arr) ? arr.filter(isValidEvent) : [];
+  } catch { return []; }
+}
+const apiSave = arr => fetch(STORAGE_KEY, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(arr)
+});
+
+const eventsFor = dateStr =>
+  events.filter(e => e.date === dateStr).sort((a, b) => parseTime(a.time) - parseTime(b.time));
+
+/* ── 렌더링 ───────────────────────── */
+function chipHTML(e) {
+  const t = e.time ? `<span class="chip-time">${esc(e.time)}</span>` : '';
+  return `<button type="button" class="event-chip" data-id="${e.id}" `
+    + `style="background:${e.color}2e;border-color:${e.color};color:${e.color}">`
+    + `${t}${esc(e.title)}</button>`;
+}
+
+function render() {
+  const cal = $('#calendar');
+  const title = $('#labelTitle');
+  const todayStr = fmt(new Date());
+  let start, cells;
+
+  if (state.view === 'month') {
+    const first = new Date(state.year, state.month, 1);
+    title.textContent = `${state.year}년 ${state.month + 1}월`;
+    start = addDays(first, -first.getDay());
+    cells = 42; // 항상 6주 그리드
+  } else {
+    start = startOfWeek(state.anchor);
+    const end = addDays(start, 6);
+    title.textContent = `${start.getMonth() + 1}월 ${start.getDate()}일 ~ `
+      + `${end.getMonth() + 1}월 ${end.getDate()}일`;
+    cells = 7;
+  }
+
+  cal.className = `calendar ${state.view}`;
+  let html = '<div class="dow-row">'
+    + DOW.map(d => `<div class="dow">${d}</div>`).join('') + '</div><div class="days-grid">';
+
+  for (let i = 0; i < cells; i++) {
+    const d = addDays(start, i);
+    const ds = fmt(d);
+    const cls = ['day-cell'];
+    if (state.view === 'month' && d.getMonth() !== state.month) cls.push('other');
+    if (ds === todayStr) cls.push('today');
+    html += `<div class="${cls.join(' ')}" data-date="${ds}">`
+      + `<span class="date-num">${d.getDate()}</span>`
+      + eventsFor(ds).map(chipHTML).join('') + '</div>';
+  }
+  cal.innerHTML = html + '</div>';
+}
+
+/* ── 이동 ─────────────────────────── */
+function go(n) {
+  if (state.view === 'month') {
+    const d = new Date(state.year, state.month + n, 1);
+    state.year = d.getFullYear();
+    state.month = d.getMonth();
+  } else {
+    state.anchor = addDays(state.anchor, n * 7);
+  }
+  render();
+}
+function goToday() {
+  const t = new Date();
+  state.year = t.getFullYear();
+  state.month = t.getMonth();
+  state.anchor = startOfWeek(t);
+  render();
+}
+function setView(v) {
+  state.view = v;
+  $('#viewMonth').classList.toggle('active', v === 'month');
+  $('#viewWeek').classList.toggle('active', v === 'week');
+  render();
+}
+
+/* ── 모달 ─────────────────────────── */
+function renderSwatches() {
+  $('#colorRow').innerHTML = COLORS.map(c =>
+    `<button type="button" class="swatch${c === selectedColor ? ' active' : ''}" `
+    + `data-color="${c}" style="background:${c}" aria-label="색상 ${c}"></button>`).join('');
+}
+
+function openModal(dateStr, ev) {
+  editing = ev ? ev.id : null;
+  selectedColor = ev ? ev.color : COLORS[0];
+  $('#evTitle').value = ev ? ev.title : '';
+  $('#evTime').value = (ev && ev.time) ? ev.time : '';
+  $('#modalHeading').textContent = ev ? '일정 수정' : '일정 추가';
+  $('#btnDelete').classList.toggle('hidden', !ev);
+  $('#modalBackdrop').dataset.date = dateStr;
+  renderSwatches();
+  $('#modalBackdrop').hidden = false;
+  $('#evTitle').focus();
+}
+const closeModal = () => { $('#modalBackdrop').hidden = true; editing = null; };
+
+async function saveEvent() {
+  const title = $('#evTitle').value.trim();
+  if (!title) { $('#evTitle').focus(); return; }
+  const date = $('#modalBackdrop').dataset.date;
+  const time = $('#evTime').value;
+  if (editing) {
+    Object.assign(events.find(e => e.id === editing), { title, time, color: selectedColor });
+  } else {
+    events.push({ id: uid(), date, title, time, color: selectedColor });
+  }
+  await apiSave(events); render(); closeModal();
+}
+async function deleteEvent() {
+  if (!editing) return;
+  events = events.filter(e => e.id !== editing);
+  await apiSave(events); render(); closeModal();
+}
+
+/* ── JSON 내보내기 / 가져오기 ─────── */
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(events, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `calendar-events-${fmt(new Date()).replaceAll('-', '')}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function importJSON(file) {
+  const r = new FileReader();
+  r.onload = async () => {
+    try {
+      const arr = JSON.parse(r.result);
+      if (!Array.isArray(arr) || !arr.every(isValidEvent)) throw new Error('bad format');
+      if (!confirm(`${arr.length}개의 일정을 가져와 현재 일정을 대체합니다. 계속하시겠습니까?`)) return;
+      events = arr;
+      await apiSave(events); render();
+    } catch {
+      alert('올바른 일정 JSON 파일이 아닙니다.');
+    }
+  };
+  r.readAsText(file);
+}
+
+/* ── 초기화 ───────────────────────── */
+function init() {
+  goToday();
+
+  $('#btnPrev').onclick = () => go(-1);
+  $('#btnNext').onclick = () => go(1);
+  $('#btnToday').onclick = goToday;
+  $('#viewMonth').onclick = () => setView('month');
+  $('#viewWeek').onclick = () => setView('week');
+  $('#btnExport').onclick = exportJSON;
+  $('#btnImport').onclick = () => $('#fileImport').click();
+  $('#fileImport').onchange = e => {
+    if (e.target.files[0]) importJSON(e.target.files[0]);
+    e.target.value = '';
+  };
+
+  $('#calendar').addEventListener('click', e => {
+    const chip = e.target.closest('.event-chip');
+    if (chip) {
+      const ev = events.find(x => x.id === chip.dataset.id);
+      if (ev) openModal(ev.date, ev);
+      return;
+    }
+    const cell = e.target.closest('[data-date]');
+    if (cell) openModal(cell.dataset.date, null);
+  });
+
+  $('#colorRow').addEventListener('click', e => {
+    const s = e.target.closest('.swatch');
+    if (!s) return;
+    selectedColor = s.dataset.color;
+    renderSwatches();
+  });
+
+  $('#btnSave').onclick = saveEvent;
+  $('#btnCancel').onclick = closeModal;
+  $('#btnDelete').onclick = deleteEvent;
+  $('#modalBackdrop').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Enter' && !$('#modalBackdrop').hidden
+        && (e.target === $('#evTitle') || e.target === $('#evTime'))) saveEvent();
+  });
+
+  render();
+}
+
+(async function main() {
+  events = await apiLoad();
+  init();
+  // 다른 기기에서 변경된 일정 자동 동기화 (모달/편집 중이 아닐 때만)
+  setInterval(async () => {
+    if (!$('#modalBackdrop').hidden) return;
+    const latest = await apiLoad();
+    if (JSON.stringify(latest) !== JSON.stringify(events)) {
+      events = latest; render();
+    }
+  }, 10000);
+})();
+</script>
+</body>
+</html>
