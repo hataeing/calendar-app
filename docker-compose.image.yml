@@ -1,0 +1,16 @@
+services:
+  calendar:
+    image: python:3.12-alpine
+    container_name: calendar
+    restart: unless-stopped
+    working_dir: /app
+    command: python server.py
+    ports:
+      - "3300:80"
+    environment:
+      - TZ=Asia/Seoul
+      - PORT=80
+      - DATA_DIR=/data
+    volumes:
+      - ./app:/app:ro
+      - ./data:/data
