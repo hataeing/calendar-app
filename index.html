@@ -123,12 +123,21 @@ main.calendar { flex: 1; overflow: auto; display: flex; flex-direction: column; 
 .day-cell:nth-child(7n) { border-right: none; }
 .day-cell:hover { background: var(--cell-hover); }
 .day-cell.other { opacity: .4; }
+/* 날짜 숫자 + 공휴일 이름을 같은 행에 나란히 표시 */
+.date-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  align-self: flex-start;
+  min-width: 0;
+  max-width: 100%;
+}
 .day-cell .date-num {
   font-size: 13px;
   font-weight: 600;
-  align-self: flex-start;
   padding: 2px 8px;
   border-radius: 50%;
+  flex: none;
 }
 .day-cell.weekend .date-num,
 .day-cell.holiday .date-num { color: var(--weekend); }
@@ -141,6 +150,7 @@ main.calendar { flex: 1; overflow: auto; display: flex; flex-direction: column; 
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .event-chip {
@@ -162,10 +172,20 @@ main.calendar { flex: 1; overflow: auto; display: flex; flex-direction: column; 
 .chip-time { opacity: .8; margin-right: 3px; font-variant-numeric: tabular-nums; }
 
 /* ── 기간 일정 스트립 ──────────────── */
-.event-chip.seg-start { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+/* 스트립 조각은 단일 칩보다 위에 표시 */
+.event-chip.seg-start, .event-chip.seg-mid, .event-chip.seg-end {
+  position: relative;
+  z-index: 2;
+}
+.event-chip.seg-start {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none; /* 내부 경계선 제거 — 이어지는 칸과 자연스럽게 연결 */
+}
 .event-chip.seg-mid {
   border-radius: 0;
   border-left: none;
+  border-right: none;
 }
 .event-chip.seg-end {
   border-top-left-radius: 0;
@@ -392,9 +412,16 @@ function ensureHolidays(years) {
 
 /* ── 일정 조회 ─────────────────────── */
 const covers = (e, ds) => evStart(e) <= ds && ds <= evEnd(e);
+const isSpan = e => evStart(e) !== evEnd(e);
+// 칸 내 표시 순서: 기간 일정(눈에 띄게 앞) → 시작일순 → 시간순 → 제목순
 const eventsFor = ds =>
-  events.filter(e => covers(e, ds)).sort((a, b) =>
-    evStart(a).localeCompare(evStart(b)) || parseTime(a.time) - parseTime(b.time));
+  events.filter(e => covers(e, ds)).sort((a, b) => {
+    const sa = isSpan(a) ? 0 : 1, sb = isSpan(b) ? 0 : 1;
+    if (sa !== sb) return sa - sb;
+    return evStart(a).localeCompare(evStart(b))
+      || parseTime(a.time) - parseTime(b.time)
+      || (a.title || '').localeCompare(b.title || '', 'ko');
+  });
 
 /* ── 렌더링 ───────────────────────── */
 function chipHTML(e, ds) {
@@ -449,8 +476,9 @@ function render() {
     const hname = holi[ds];
     if (hname) cls.push('holiday');
     html += `<div class="${cls.join(' ')}" data-date="${ds}">`
-      + `<span class="date-num">${d.getDate()}</span>`
-      + (hname ? `<div class="holiday-name" title="${esc(hname)}">${esc(hname)}</div>` : '')
+      + `<div class="date-row"><span class="date-num">${d.getDate()}</span>`
+      + (hname ? `<span class="holiday-name" title="${esc(hname)}">${esc(hname)}</span>` : '')
+      + `</div>`
       + eventsFor(ds).map(e => chipHTML(e, ds)).join('') + '</div>';
   }
   cal.innerHTML = html + '</div>';
