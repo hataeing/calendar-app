@@ -1,9 +1,11 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>일정관리 캘린더</title>
+<script>/* 테마 플래시 방지 — 본문 스크립트 전에 저장된 테마 적용 */
+try { if (localStorage.getItem('calendar.theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch (e) {}</script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -15,6 +17,25 @@
   --muted: #8b91a5;
   --accent: #5b8cff;
   --danger: #e05252;
+  --weekend: #e05252;
+  --hover: #262b3a;
+  --cell-hover: #181b25;
+  --shadow: rgba(0, 0, 0, .55);
+  --backdrop: rgba(5, 7, 12, .65);
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #f5f6fa;
+  --panel: #ffffff;
+  --panel2: #edeff5;
+  --border: #dde0ea;
+  --text: #1c1f2b;
+  --muted: #697089;
+  --hover: #e8eaf1;
+  --cell-hover: #eef0f5;
+  --shadow: rgba(30, 34, 50, .25);
+  --backdrop: rgba(30, 34, 50, .35);
+  color-scheme: light;
 }
 html, body { height: 100%; }
 body {
@@ -52,7 +73,7 @@ button {
   cursor: pointer;
   transition: background .15s, border-color .15s;
 }
-button:hover { background: #262b3a; }
+button:hover { background: var(--hover); }
 .btn-icon { padding: 7px 11px; font-size: 16px; line-height: 1; }
 .view-toggle { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .view-toggle button { border: none; border-radius: 0; padding: 7px 16px; background: transparent; }
@@ -76,8 +97,7 @@ main.calendar { flex: 1; overflow: auto; display: flex; flex-direction: column; 
   color: var(--muted);
   border-bottom: 1px solid var(--border);
 }
-.dow:nth-child(1) { color: #e06b6b; }
-.dow:nth-child(7) { color: #6b8ee0; }
+.dow:nth-child(1), .dow:nth-child(7) { color: var(--weekend); }
 .days-grid {
   flex: 1;
   display: grid;
@@ -101,7 +121,7 @@ main.calendar { flex: 1; overflow: auto; display: flex; flex-direction: column; 
   transition: background .15s;
 }
 .day-cell:nth-child(7n) { border-right: none; }
-.day-cell:hover { background: #181b25; }
+.day-cell:hover { background: var(--cell-hover); }
 .day-cell.other { opacity: .4; }
 .day-cell .date-num {
   font-size: 13px;
@@ -110,7 +130,18 @@ main.calendar { flex: 1; overflow: auto; display: flex; flex-direction: column; 
   padding: 2px 8px;
   border-radius: 50%;
 }
+.day-cell.weekend .date-num,
+.day-cell.holiday .date-num { color: var(--weekend); }
 .day-cell.today .date-num { background: var(--accent); color: #fff; }
+.holiday-name {
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--weekend);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .event-chip {
   display: block;
@@ -130,12 +161,24 @@ main.calendar { flex: 1; overflow: auto; display: flex; flex-direction: column; 
 .event-chip:hover { filter: brightness(1.15); }
 .chip-time { opacity: .8; margin-right: 3px; font-variant-numeric: tabular-nums; }
 
+/* ── 기간 일정 스트립 ──────────────── */
+.event-chip.seg-start { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.event-chip.seg-mid {
+  border-radius: 0;
+  border-left: none;
+}
+.event-chip.seg-end {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: none;
+}
+
 /* ── 모달 ─────────────────────────── */
 .modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(5, 7, 12, .65);
+  background: var(--backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -151,7 +194,7 @@ main.calendar { flex: 1; overflow: auto; display: flex; flex-direction: column; 
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, .55);
+  box-shadow: 0 20px 60px var(--shadow);
 }
 .modal h3 { font-size: 16px; }
 .modal label {
@@ -161,7 +204,7 @@ main.calendar { flex: 1; overflow: auto; display: flex; flex-direction: column; 
   font-size: 13px;
   color: var(--muted);
 }
-.modal input[type="text"], .modal input[type="time"] {
+.modal input[type="text"], .modal input[type="time"], .modal input[type="date"] {
   background: var(--panel2);
   border: 1px solid var(--border);
   color: var(--text);
@@ -172,7 +215,8 @@ main.calendar { flex: 1; overflow: auto; display: flex; flex-direction: column; 
   width: 100%;
 }
 .modal input:focus { outline: none; border-color: var(--accent); }
-.modal input[type="time"] { color-scheme: dark; }
+.range-row { display: flex; gap: 8px; }
+.range-row label { flex: 1; min-width: 0; }
 .color-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .swatch {
   width: 26px;
@@ -182,7 +226,7 @@ main.calendar { flex: 1; overflow: auto; display: flex; flex-direction: column; 
   padding: 0;
   transition: transform .12s, border-color .12s;
 }
-.swatch.active { border-color: #fff; transform: scale(1.12); }
+.swatch.active { border-color: var(--text); transform: scale(1.12); }
 .modal-actions { display: flex; align-items: center; gap: 8px; }
 .modal-actions .spacer { flex: 1; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -204,6 +248,8 @@ button.danger:hover { background: rgba(224, 82, 82, .12); }
   .day-cell .date-num { font-size: 11px; padding: 1px 5px; }
   .event-chip { font-size: 10px; padding: 1px 4px; }
   .chip-time { display: none; }
+  .event-chip[data-time]::before { content: '⏰'; margin-right: 2px; }
+  .holiday-name { font-size: 8.5px; }
 }
 </style>
 </head>
@@ -223,6 +269,7 @@ button.danger:hover { background: rgba(224, 82, 82, .12); }
     </div>
     <button id="btnExport">내보내기</button>
     <button id="btnImport">가져오기</button>
+    <button id="btnTheme" class="btn-icon" aria-label="테마 전환">☀️</button>
     <input type="file" id="fileImport" accept=".json,application/json" hidden>
   </div>
 </header>
@@ -238,6 +285,14 @@ button.danger:hover { background: rgba(224, 82, 82, .12); }
     <label>시간
       <input type="time" id="evTime">
     </label>
+    <div class="range-row">
+      <label>시작일
+        <input type="date" id="evStart">
+      </label>
+      <label>종료일
+        <input type="date" id="evEnd">
+      </label>
+    </div>
     <label>색상
       <div class="color-row" id="colorRow"></div>
     </label>
@@ -254,6 +309,7 @@ button.danger:hover { background: rgba(224, 82, 82, .12); }
 'use strict';
 
 const STORAGE_KEY = '/api/events';  // 서버 API 경로 (기기 공유)
+const THEME_KEY = 'calendar.theme'; // 테마만 localStorage 예외 허용
 const COLORS = ['#e05252', '#f0923a', '#4f8cff', '#3fb27f', '#a06be0', '#e0559a'];
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
 const $ = s => document.querySelector(s);
@@ -275,6 +331,9 @@ const esc = s => s.replace(/[&<>"']/g, c =>
 const isValidEvent = e =>
   e && typeof e.title === 'string' && typeof e.date === 'string' &&
   /^\d{4}-\d{2}-\d{2}$/.test(e.date);
+// 기간 필드 정규화: date만 있는 기존 일정은 start=date, end=date로 처리 (하위호환)
+const evStart = e => e.start || e.date;
+const evEnd = e => e.end || e.date;
 
 /* ── 저장소 (서버 API — 기기 공유) ─── */
 async function apiLoad() {
@@ -284,19 +343,66 @@ async function apiLoad() {
     return Array.isArray(arr) ? arr.filter(isValidEvent) : [];
   } catch { return []; }
 }
-const apiSave = arr => fetch(STORAGE_KEY, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(arr)
-});
+async function apiSave(arr) {
+  try {
+    const r = await fetch(STORAGE_KEY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(arr)
+    });
+    return r.ok;
+  } catch { return false; }
+}
 
-const eventsFor = dateStr =>
-  events.filter(e => e.date === dateStr).sort((a, b) => parseTime(a.time) - parseTime(b.time));
+// 저장 직전 최신 데이터를 GET으로 병합해 동시 편집 덮어쓰기 방지
+async function persist(mutate) {
+  const latest = await apiLoad();
+  const merged = mutate(latest);
+  events = merged;
+  render();
+  const ok = await apiSave(merged);
+  if (!ok) alert('저장에 실패했습니다. 네트워크 상태를 확인해 주세요.');
+}
+
+/* ── 한국 공휴일 (date.nager.kr, 메모리 캐시) ── */
+const holidayCache = new Map(); // year → { map, promise }
+function holidayData(year) {
+  let entry = holidayCache.get(year);
+  if (!entry) {
+    entry = { map: null };
+    entry.promise = fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`)
+      .then(r => (r.ok ? r.json() : []))
+      .then(arr => {
+        const map = {};
+        for (const h of arr) {
+          if (h && h.date && h.localName)
+            map[h.date] = map[h.date] ? `${map[h.date]} · ${h.localName}` : h.localName;
+        }
+        entry.map = map;
+      })
+      .catch(() => { entry.map = {}; }); // fetch 실패 시 조용히 생략
+    holidayCache.set(year, entry);
+  }
+  return entry;
+}
+function ensureHolidays(years) {
+  const pending = years.map(y => holidayData(y)).filter(e => e.map === null).map(e => e.promise);
+  if (pending.length) Promise.all(pending).then(render).catch(() => {});
+}
+
+/* ── 일정 조회 ─────────────────────── */
+const covers = (e, ds) => evStart(e) <= ds && ds <= evEnd(e);
+const eventsFor = ds =>
+  events.filter(e => covers(e, ds)).sort((a, b) =>
+    evStart(a).localeCompare(evStart(b)) || parseTime(a.time) - parseTime(b.time));
 
 /* ── 렌더링 ───────────────────────── */
-function chipHTML(e) {
-  const t = e.time ? `<span class="chip-time">${esc(e.time)}</span>` : '';
-  return `<button type="button" class="event-chip" data-id="${e.id}" `
+function chipHTML(e, ds) {
+  const s = evStart(e), en = evEnd(e);
+  const seg = s !== en ? (ds === s ? ' seg-start' : ds === en ? ' seg-end' : ' seg-mid') : '';
+  const t = (e.time && ds === s)
+    ? `<span class="chip-time">${esc(e.time)}</span>` : '';
+  return `<button type="button" class="event-chip${seg}" data-id="${e.id}"${e.time ? ` data-time="${esc(e.time)}"` : ''} `
     + `style="background:${e.color}2e;border-color:${e.color};color:${e.color}">`
     + `${t}${esc(e.title)}</button>`;
 }
@@ -320,6 +426,15 @@ function render() {
     cells = 7;
   }
 
+  const endD = addDays(start, cells - 1);
+  const years = [...new Set([start.getFullYear(), endD.getFullYear()])];
+  ensureHolidays(years);
+  const holi = {};
+  for (const y of years) {
+    const m = holidayData(y).map;
+    if (m) Object.assign(holi, m);
+  }
+
   cal.className = `calendar ${state.view}`;
   let html = '<div class="dow-row">'
     + DOW.map(d => `<div class="dow">${d}</div>`).join('') + '</div><div class="days-grid">';
@@ -330,9 +445,13 @@ function render() {
     const cls = ['day-cell'];
     if (state.view === 'month' && d.getMonth() !== state.month) cls.push('other');
     if (ds === todayStr) cls.push('today');
+    if (d.getDay() === 0 || d.getDay() === 6) cls.push('weekend');
+    const hname = holi[ds];
+    if (hname) cls.push('holiday');
     html += `<div class="${cls.join(' ')}" data-date="${ds}">`
       + `<span class="date-num">${d.getDate()}</span>`
-      + eventsFor(ds).map(chipHTML).join('') + '</div>';
+      + (hname ? `<div class="holiday-name" title="${esc(hname)}">${esc(hname)}</div>` : '')
+      + eventsFor(ds).map(e => chipHTML(e, ds)).join('') + '</div>';
   }
   cal.innerHTML = html + '</div>';
 }
@@ -362,6 +481,22 @@ function setView(v) {
   render();
 }
 
+/* ── 테마 (라이트/다크) ───────────── */
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  $('#btnTheme').textContent = t === 'light' ? '🌙' : '☀️';
+}
+function initTheme() {
+  let t = 'dark';
+  try { t = localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark'; } catch (e) {}
+  applyTheme(t);
+  $('#btnTheme').onclick = () => {
+    const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+    applyTheme(next);
+  };
+}
+
 /* ── 모달 ─────────────────────────── */
 function renderSwatches() {
   $('#colorRow').innerHTML = COLORS.map(c =>
@@ -374,6 +509,8 @@ function openModal(dateStr, ev) {
   selectedColor = ev ? ev.color : COLORS[0];
   $('#evTitle').value = ev ? ev.title : '';
   $('#evTime').value = (ev && ev.time) ? ev.time : '';
+  $('#evStart').value = ev ? evStart(ev) : dateStr;
+  $('#evEnd').value = ev ? evEnd(ev) : dateStr;
   $('#modalHeading').textContent = ev ? '일정 수정' : '일정 추가';
   $('#btnDelete').classList.toggle('hidden', !ev);
   $('#modalBackdrop').dataset.date = dateStr;
@@ -388,17 +525,31 @@ async function saveEvent() {
   if (!title) { $('#evTitle').focus(); return; }
   const date = $('#modalBackdrop').dataset.date;
   const time = $('#evTime').value;
+  let s = $('#evStart').value;
+  let en = $('#evEnd').value;
+  // 날짜가 비었으면 클릭한(또는 기존) 날짜로 대체
+  if (!s && !en) s = en = date;
+  else if (s && !en) en = s;
+  else if (!s && en) s = en;
+  if (s > en) { alert('종료일이 시작일보다 빠릅니다.'); return; }
+
+  // 하루 일정은 기존 형식(date만), 2일 이상은 start/end 포함
+  const fields = (s !== en)
+    ? { date: s, start: s, end: en, title, time, color: selectedColor }
+    : { date: s, title, time, color: selectedColor };
+
   if (editing) {
-    Object.assign(events.find(e => e.id === editing), { title, time, color: selectedColor });
+    await persist(latest => latest.map(e => (e.id === editing ? { id: editing, ...fields } : e)));
   } else {
-    events.push({ id: uid(), date, title, time, color: selectedColor });
+    const ev = { id: uid(), ...fields };
+    await persist(latest => [...latest, ev]);
   }
-  await apiSave(events); render(); closeModal();
+  closeModal();
 }
 async function deleteEvent() {
   if (!editing) return;
-  events = events.filter(e => e.id !== editing);
-  await apiSave(events); render(); closeModal();
+  await persist(latest => latest.filter(e => e.id !== editing));
+  closeModal();
 }
 
 /* ── JSON 내보내기 / 가져오기 ─────── */
@@ -417,8 +568,7 @@ function importJSON(file) {
       const arr = JSON.parse(r.result);
       if (!Array.isArray(arr) || !arr.every(isValidEvent)) throw new Error('bad format');
       if (!confirm(`${arr.length}개의 일정을 가져와 현재 일정을 대체합니다. 계속하시겠습니까?`)) return;
-      events = arr;
-      await apiSave(events); render();
+      await persist(() => arr);
     } catch {
       alert('올바른 일정 JSON 파일이 아닙니다.');
     }
@@ -429,6 +579,7 @@ function importJSON(file) {
 /* ── 초기화 ───────────────────────── */
 function init() {
   goToday();
+  initTheme();
 
   $('#btnPrev').onclick = () => go(-1);
   $('#btnNext').onclick = () => go(1);
@@ -469,7 +620,8 @@ function init() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeModal();
     if (e.key === 'Enter' && !$('#modalBackdrop').hidden
-        && (e.target === $('#evTitle') || e.target === $('#evTime'))) saveEvent();
+        && (e.target === $('#evTitle') || e.target === $('#evTime')
+            || e.target === $('#evStart') || e.target === $('#evEnd'))) saveEvent();
   });
 
   render();

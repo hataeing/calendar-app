@@ -38,14 +38,24 @@ def save_events(arr):
 
 
 def valid_event(e):
-    return (
+    if not (
         isinstance(e, dict)
         and isinstance(e.get("id"), str)
         and isinstance(e.get("title"), str) and e["title"]
         and isinstance(e.get("date"), str) and DATE_RE.match(e["date"])
         and (e.get("time") in (None, "") or (isinstance(e.get("time"), str) and TIME_RE.match(e["time"])))
         and isinstance(e.get("color"), str) and COLOR_RE.match(e["color"])
-    )
+    ):
+        return False
+    # 기간 일정: start/end는 선택 필드 (기존 date 전용 형식도 그대로 허용)
+    start, end = e.get("start"), e.get("end")
+    if start is not None and not (isinstance(start, str) and DATE_RE.match(start)):
+        return False
+    if end is not None and not (isinstance(end, str) and DATE_RE.match(end)):
+        return False
+    if start and end and end < start:
+        return False
+    return True
 
 
 class Handler(BaseHTTPRequestHandler):
